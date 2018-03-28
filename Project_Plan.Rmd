@@ -1,0 +1,20 @@
+---
+title: "Project Plan"
+author: "Steven Aguilar and Sean Curl"
+date: "March 20, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## The Global Terrorism Database: Worldwide terrorist incidents since 1970.
+  
+The data source is the Global Terrorism Database, an open-source database including information on terrorist events around the world since 1970. The data-source is from START (Study of Terrorism and Responses to Terrorism), a Department of Homeland Security Center of Excellence led by the University of Maryland.
+   
+We plan to conduct a descriptive analysis detailing the nature of terrorist incidents around the world since 1970. The motivation behind this analysis is to gain a broad understanding of terrorist incidents across the globe, both visually and descriptively. To accomplish this, we will be developing an interactive dashboard using Shiny which will contain time-series plots, heat maps, animations, etc. 
+
+Our group will be Steven Aguilar and Sean Curl. Sean will tidy the data and perform basic exploratory analyses for ingestion into the Shiny app. Steven will develop and complete the application.
+
+Data source: https://www.kaggle.com/START-UMD/gtd
