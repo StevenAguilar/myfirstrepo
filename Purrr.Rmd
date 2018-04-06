@@ -1,0 +1,368 @@
+---
+title: "Purrr"
+author: "Steven Aguilar"
+date: "February 14, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Iteration
+
+imperative programming = for and while loops
+function programming = each common for loop pattern gets its own function
+
+### For loops
+
+3 componenents:
+
+*initialization of output (use vector (type, length))
+*for (i in seq_along(df))
+* body - code that does the work an dputs results into th eoutput you initialized
+
+```{r}
+library(tidyverse)
+
+df <- tibble(
+a = rnorm(20,4,1),
+b = rnorm(20, 4, 1.2),
+c = rnorm(20, 0, 1),
+d = rnorm(20, -1, 1)
+)
+
+median(df$a)
+median(df$b)
+median(df$c)
+median(df$d)
+
+#instead use a for loop
+
+output <- vector("double", ncol(df))
+
+for (i in seq_along(output)) {
+  output[i] <- median(df[[i]])
+}
+
+output
+```
+
+### For loop variations
+
+* modifying an existing object
+* looping over names or vlues instead of indices
+* unknown output lenght
+* unknown sequence length
+
+```{r}
+rescale01 <- function(x){
+  rng <- range(x, na.rm = TRUE)
+  (x-rng[1]) / (rng[2] - rng[1])
+}
+
+for (i in seq_along(df)) {
+  df[[i]] <- rescale01(df[[i]])
+}
+
+df
+```
+
+#### Looping patterns
+
+* for (x in xs) - usually for side effects like plotting or saving a file
+* for (nm in names(xs)) - helps to use the name in a plot title or filename
+
+
+##### Unknown Output Length
+
+Do NOT grow the output with each iteration. This is very inefficient and will up the computer time. Let's look at simulating random vectors of random lenghts
+
+```{r}
+means <- c(0,1,2)
+
+output <- double()
+
+for(i in seq_along(means)){
+  n <- sample(100,1)
+  output <- c(output, rnorm(n, means[[i]]))
+}
+
+str(output)
+
+##better approach
+out <- vector("list", length(means))
+
+for (i in seq_along(means)){
+  n <- sample(100,1)
+  out[[i]] <- rnorm(n, means[[i]])
+}
+
+str(out)
+
+str(unlist(out))
+```
+
+other similar situations:
+
+* generating a long string. If you are using paste() to continue growin gth estring with each iteraion, instead save the output ...
+as a character vector, then combine into a single string using *paste(output, collapse="")*
+
+* if you are using rbind() in each iteration, save the ...
+
+
+
+while loop
+
+keep looping until a certain condition occurs
+Dangerous because you could get stuck in an infinite loop if the condition never occurs. I personaly prefer a for loop with a maximum number of iterations.
+
+
+# Homework or classwork: p. 321 () #1, #3
+
+A)
+```{r}
+output <- vector("double", ncol(mtcars))
+for (i in seq_along(output)) {
+  output[i] <- mean(mtcars[[i]])
+}
+
+output
+
+```
+
+B)
+```{r}
+output <- vector("character", ncol(nycflights13::flights))
+for (i in seq_along(output)) {
+  output <- str(nycflights13::flights[[i]])
+}
+output
+```
+
+C)
+```{r}
+output <- vector("double", ncol(iris))
+for (i in seq_along(output)){
+  output[i] <- length(unique(iris[[i]]))
+}
+
+output
+```
+
+D)
+```{r}
+df <- c(-10,0,10,100)
+output <- vector("list", length(df))
+for (i in seq_along(df)){
+  output[[i]] <- rnorm(10, df[[i]])
+}
+output
+```
+
+###Functional Programming
+
+```{r}
+df <- tibble(
+a = rnorm(20,4,1),
+b = rnorm(20, 4, 1.2),
+c = rnorm(20, 0, 1),
+d = rnorm(20, -1, 1)
+)
+
+#for loop
+output <- vector("double", ncol(df))
+
+for (i in seq_along(output)) {
+  output[i] <- median(df[[i]])
+}
+output
+
+#put into a function
+col_median <- function(df){
+  output <- vector("double", ncol(df))
+  for (i in seq_along(df)) {
+    output[[i]] <- median(df[[i]])
+  }
+  output
+}
+
+col_median(df)
+
+#Computing IQR
+col_IQR <- function(df){
+  output <- vector("double", ncol(df))
+  for (i in seq_along(df)) {
+    output[[i]] <- IQR(df[[i]])
+  }
+  output
+}
+
+col_IQR(df)
+
+
+
+```
+
+#####Passing Functions
+```{r}
+col_info <- function(df, func){
+  output <- vector("double", ncol(df))
+  for (i in seq_along(df)) {
+    output[[i]] <- func(df[[i]])
+  }
+  output
+}
+
+col_info(df, median)
+col_info(df, mean)
+
+```
+
+First we will figure out how to solve a problem for a single element of a list. Then use purrr functions to generalize our solution to every element in the list.
+
+#### map functions
+Take a vector as input, applies a function to each piece and returns a new vector with the same names and length as th einput vecotr. Pick your function based on the type of output you want.
+
+* map() makes a list
+* map_lgl makes a logical vector
+* map_int() makes an integer vector
+* map_dbl() makes a double vector
+* map_chr() makes a character vector
+
+
+```{r}
+map_dbl(df, median)
+map_dbl(df, IQR)
+
+df %>%
+  map_dbl(median)
+
+df%>%
+  map_dbl(IQR)
+
+# map also preserves the names associated with the vector
+map_dbl(df, median, trim = 0.5)
+```
+
+
+#### Shortcuts in map functions that save typing
+
+```{r}
+mtcars %>% split(.$cyl)
+models <- mtcars %>%
+  split(.$cyl) %>%
+  map(function(df) lm(mpg~wt, data = df))
+models
+
+#Shortcut for writing the same exact code
+models <- mtcars %>%
+  split(.$cyl) %>%
+  map(~lm(mpg~wt, data=.)) #here . stands for the current list element
+models
+
+# getting the R Squared for each separate regression
+models %>%
+  map(summary)%>%
+  map_dbl(~.$r.squared)
+
+names(summary(models[[1]]))
+
+models %>%
+  map(summary)%>%
+  map("fstatistic")%>%
+  map_dbl("value")
+
+```
+
+#### Dealing with failures
+
+* safely() returns a list of 2 elements, one of which is null
+
+  -- first element is result if not error, NULL if error
+  -- second element is error message if there is an error, NULL if no error
+  
+* possibly() always successful; provide....
+* quietly() instead of capturing errors, it captures printed output, message, and warnings.
+
+
+#### Mapping over Multiple Arguements
+
+* map2 for iterating over two different arguements
+* pmap for 
+
+```{r}
+mu <- list(-2,3,15)
+sigma <- list(0.5,1,2)
+map2(mu, sigma, rnorm, n=10) %>% str()
+
+n <- list(5,10,15)
+args1 <- list(n =n, mean=mu, sd=sigma)
+args1 %>%
+  pmap(rnorm) %>%
+  str()
+
+args2 <- tibble(
+  n = c(5,10,15),
+  mean = c(-2,3,15),
+  sd = c(0.5,1,2)
+)
+
+args2 %>% 
+  pmap(rnorm) %>%
+  str()
+
+
+```
+
+#### Invoke Map
+```{r}
+# put all the functions in a vector or list
+
+f <- list("runif", "rnorm", "rpois")
+
+param <- list(
+  list(min = -1, max = 1),
+  list(sd = 2),
+  list(lambda = 4)
+)
+
+invoke_map(f, param, n=5)
+
+
+
+args3 <- tribble(
+  ~f,     ~params,
+  "runif", list(min = -1, max=1),
+  "rnorm", list(sd=2),
+  "rpois", list(lambda = 4)
+)
+
+temp <- args3 %>%
+  mutate(args3 = invoke_map(f, param, n=5))
+
+temp$args3 %>% str()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
