@@ -1,0 +1,243 @@
+---
+title: "modelr notes"
+author: "Steven Aguilar"
+date: "February 21, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(modelr)
+library(purrr)
+library(lubridate)
+```
+
+## Fundamentals of Models
+
+Models can show us useful information about our model. We will look at both patterns and residuals. 
+  
+Split data into:
+  
+* training set (about 60%) - can do anything with this you want as many times as you want
+* query set (about 20%) - compare models or visualizations by hand but not as part of an automated process
+* test set (about 20%) - use only once to test your final model after you have selected it
+
+We will define a family of models that express a precise, but generic, pattern that we want to identify. Then, we will generate a fitted model by finding the model from the family that best fits the data.
+
+We begin by examing a simple dataset: sim1 that is part of modelr. 
+  
+```{r}
+sim1
+ggplot(sim1, aes(x,y))+
+  geom_point()
+
+
+```
+Looks linear. So let's think about fitting a line to the data. This will be our family of models... y =a1+a2x. so let's set up a tible that contains lots of lines with slopes between -5 and 5 and intercepts between -20 and 40. We will then plot these lines on top of our points
+
+```{r}
+models <- tibble(
+  a1 = runif(250, -20, 40),
+  a2 = runif(250, -5, 5)
+)
+
+ggplot(sim1, aes(x,y))+
+  geom_abline(
+    aes(intercept = a1, slope = a2),
+    data=models, alpha = 1/4)+
+  geom_point()
+
+
+```
+
+```{r}
+#Compute the predicted y
+
+model1 <- function(a, data){
+  a[1] + data$x * a[2]
+}
+
+model1(c(7,2), sim1)
+
+#Compute the distance using the same inputs
+measure_distance <- function(mod, data){
+  diff <- data$y - model1(mod, data)
+  sqrt(mean(diff^2))
+}
+
+measure_distance(c(7,2), sim1)
+```
+
+```{r}
+# measure_distance expectrs a numeric vector of length 2 followed by the dataset name
+
+sim1_dist <- function(a1,a2){
+  measure_distance(c(a1,a2), sim1)
+}
+
+models <- models %>%
+  mutate(dist = map2_dbl(a1, a2, sim1_dist))
+models
+
+#plot best ten models, colored by distance
+ggplot(sim1, aes(x, y))+
+  geom_point(size = 2 , color = "grey30") +
+  geom_abline(
+    aes(intercept = a1, slope = a2, color = -dist),
+    data = filter(models, rank(dist) <= 10)
+  )
+
+```
+
+We could instead look at the coordinates versus the distance
+
+```{r}
+models %>%
+  ggplot(aes(a1,a2)) +
+  geom_point(
+    data = filter(models, rank(dist) <= 10),
+    size = 4, color = "red") +
+  geom_point(aes(color = -dist))
+```
+
+```{r}
+grid <- expand.grid(
+  a1 = seq(-10,10, length = 50),
+  a2 = seq(1,4, length = 50)
+) %>%
+  mutate(dist = map2_dbl(a1, a2, sim1_dist))
+head(grid %>% arrange(dist))
+
+sim1 %>%
+  ggplot(aes(x, y))+
+  geom_point(size = 2 , color = "grey30") +
+  geom_abline(
+    aes(intercept = a1, slope = a2, color = -dist),
+    data = filter(grid, rank(dist) <= 10)
+  )
+```
+  
+```{r}
+best <- optim(c(4,2), measure_distance, data = sim1)
+best$par
+
+sim1 %>%
+  ggplot(aes(x,y)) +
+  geom_point(size=2, color="grey30")+
+  geom_abline(
+    aes(intercept = best$par[1], slope = best$par[2])
+  )
+```
+
+## Visualizing models
+```{r}
+grid <- sim1 %>%
+  data_grid(x)
+grid
+
+grid2 <- mtcars %>%
+  data_grid(disp, wt)
+grid2
+tail(grid2)
+
+sim1_mod <- lm(y ~ x, data=sim1)
+
+grid <- grid %>%
+  add_predictions(sim1_mod)
+
+sim1 %>%
+  ggplot(aes(x)) +
+  geom_point(aes(y=y)) +
+  geom_point(aes(y = pred), data = grid,
+             color = "red",
+             size = 3)
+
+```
+   
+```{r}
+sim1 <- sim1 %>%
+  add_residuals(sim1_mod)
+
+sim1 %>%
+  ggplot(aes(x, resid))+
+  geom_ref_line(h=0) + geom_point()
+
+
+```
+  
+```{r}
+#Categorical variable
+sim2
+
+sim2 %>%
+  ggplot(aes(x,y)) + geom_point()
+
+mod2 <- lm(y ~ x, data = sim2)
+grid <- sim2 %>%
+  data_grid(x)%>%
+  add_predictions(mod2)
+grid
+
+sim2 %>%
+  ggplot(aes(x=x)) +
+  geom_point(aes(y = y)) +
+  geom_point(
+    data = grid,
+    aes(y = pred),
+    color = "red",
+    size = 3
+  )
+
+```
+
+## two predictors
+####PAY ATTENTION
+```{r}
+ggplot(sim3, aes(x1, y)) +
+  geom_point(aes(color=x2))
+
+mod1 <- lm(y ~ x1 + x2, data = sim3)
+mod2 <- lm(y ~ x1 *x2, data = sim3)
+
+grid <- sim3 %>%
+  data_grid(x1,x2) %>%
+  gather_predictions(mod1, mod2)
+grid
+
+sim3 %>%
+  ggplot(aes(x1, y, color = x2))+
+  geom_point(aes(color = x2))+
+  geom_line().............
+```
+
+```{r}
+sim3 <- sim3 %>%
+  gather_residuals(mod1, mod2)
+
+sim3 %>%
+  ggplot(aes(x1, resid, color = x2))+
+  geom_point()+
+  facet_grid(model ~ x2)
+```
+
+## two continuous variables
+```{r}
+mod1 <- lm(y ~ x1 + x2, data = sim4)
+mod2 <- lm(y ~ x1 * x2, data = sim4)
+
+grid <- sim4 %>%
+  data_grid(
+    x1 = seq_range(x1, 5),
+    x2 = seq_range(x2, 5)
+  ) %>%
+  gather_predictions(mod1, mod2)
+grid
+
+
+grid %>%
+  ggplot(aes(x1, x2)) +
+  geom_tile()
+```
+
